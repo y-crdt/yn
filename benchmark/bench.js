@@ -1,50 +1,38 @@
 'use strict';
 
+const fs = require('fs')
+const zlib = require('zlib')
 const Y = require('yjs');
 const { Bench } = require('tinybench');
 const yn = require('yn');
 const ywasm = require('ywasm');
 
-const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789\n';
-
-function makeRng(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function randomChunk(rng, maxLen) {
-  const len = 1 + Math.floor(rng() * maxLen);
-  let out = '';
-  for (let i = 0; i < len; i++) {
-    out += ALPHABET[Math.floor(rng() * ALPHABET.length)];
-  }
-  return out;
-}
-
-function generateUpdates(count, seed) {
-  const rng = makeRng(seed);
-  const doc = new Y.Doc({ gc: false });
-  const text = doc.getText('t');
-  const updates = [];
-  doc.on('update', (u) => updates.push(u));
-
-  for (let i = 0; i < count; i++) {
-    const len = text.length;
-    const r = rng();
-    if (len > 0 && r < 0.35) {
-      const at = Math.floor(rng() * len);
-      const delLen = 1 + Math.floor(rng() * Math.min(8, len - at));
-      text.delete(at, delLen);
-    } else {
-      const at = len === 0 ? 0 : Math.floor(rng() * (len + 1));
-      text.insert(at, randomChunk(rng, 16));
+const generateUpdates = (filename) => {
+    const {startContent, endContent, txns} = JSON.parse(
+        filename.endsWith('.gz')
+            ? zlib.gunzipSync(fs.readFileSync(filename))
+            : fs.readFileSync(filename, 'utf-8')
+    )
+    const updates = []
+    const doc = new Y.Doc()
+    doc.on('update', (u) => updates.push(u))
+    const text = doc.getText('t')
+    if (startContent && startContent !== '') {
+        text.push(startContent)
     }
-  }
-
-  return updates;
+    for (const {patches} of txns) {
+        Y.transact(doc, () => {
+          for (const [pos, del, chunk] of patches) {
+              if (del !== 0) {
+                  text.delete(pos, del)
+              }
+              if (chunk && chunk !== '') {
+                  text.insert(pos, chunk)
+              }
+          }
+        })
+    }
+    return updates
 }
 
 function yjsMerge(updates) {
@@ -103,32 +91,24 @@ function sanityCheck(updates) {
 }
 
 async function main() {
-  const sizes = [2, 10, 100];
-  const fixtures = sizes.map((n) => ({
-    n,
-    updates: generateUpdates(n, 0xC0FFEE + n),
-  }));
+  const updates = generateUpdates('./benchmark/automerge-paper.json.gz')
+  const info = sanityCheck(updates);
+  console.log(
+    `[sanity] n=${updates.length}: same-text=ok yn-bytes-eq-yjs=${info.sameYn} ywasm-bytes-eq-yjs=${info.sameYwasm} merged-bytes=${info.len}`
+  );
 
-  for (const f of fixtures) {
-    const info = sanityCheck(f.updates);
-    console.log(
-      `[sanity] n=${f.n}: same-text=ok yn-bytes-eq-yjs=${info.sameYn} ywasm-bytes-eq-yjs=${info.sameYwasm} merged-bytes=${info.len}`
-    );
-  }
+  const bench = new Bench({ time: 0, warmupTime: 0, iterations: 5, warmupIterations: 1 });
+  const length = updates.length
+  bench.add(`yjs   merge ${length} updates`, () => {
+    yjsMerge(updates);
+  });
+  bench.add(`ywasm merge ${length} updates`, () => {
+    ywasmMerge(updates);
+  });
+  bench.add(`yn    merge ${length} updates`, () => {
+    ynMerge(updates);
+  });
 
-  const bench = new Bench({ time: 1000, warmupTime: 200 });
-
-  for (const { n, updates } of fixtures) {
-    bench.add(`yjs   merge ${String(n).padStart(3)} updates`, () => {
-      yjsMerge(updates);
-    });
-    bench.add(`ywasm merge ${String(n).padStart(3)} updates`, () => {
-      ywasmMerge(updates);
-    });
-    bench.add(`yn    merge ${String(n).padStart(3)} updates`, () => {
-      ynMerge(updates);
-    });
-  }
 
   await bench.run();
 
