@@ -56,7 +56,7 @@ function yjsMerge(updates) {
 }
 
 function ynMerge(updates) {
-  return yn.mergeUpdates(true, updates);
+  return yn.applyUpdates(true, updates);
 }
 
 function ywasmMerge(updates) {

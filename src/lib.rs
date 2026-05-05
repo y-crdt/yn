@@ -7,8 +7,8 @@ use neon::types::buffer::TypedArray;
 use yrs::updates::decoder::Decode;
 use yrs::{Doc, Options, ReadTxn, StateVector, Transact, Update};
 
-#[neon::export(name = "mergeUpdates")]
-fn merge_updates<'cx>(
+#[neon::export(name = "applyUpdates")]
+fn apply_updates<'cx>(
     cx: &mut Cx<'cx>,
     gc: bool,
     updates: Handle<'cx, JsArray>,
