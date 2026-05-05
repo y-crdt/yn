@@ -15,11 +15,12 @@ const generateUpdates = (filename) => {
     )
     const updates = []
     const doc = new Y.Doc()
-    doc.on('update', (u) => updates.push(u))
+    let sv = Y.encodeStateVector(doc)
     const text = doc.getText('t')
     if (startContent && startContent !== '') {
         text.push(startContent)
     }
+    let i = 0
     for (const {patches} of txns) {
         Y.transact(doc, () => {
           for (const [pos, del, chunk] of patches) {
@@ -31,7 +32,18 @@ const generateUpdates = (filename) => {
               }
           }
         })
+
+        // encode updates in packs of 1000, otherwise with 260k 
+        // updates all that we're benchmarking is overhead of 
+        // JS function call
+        if (++i % 1000 === 0) {
+          const u = Y.encodeStateAsUpdate(doc, sv)
+          updates.push(u)
+          sv = Y.encodeStateVector(doc)
+        }
     }
+    const u = Y.encodeStateAsUpdate(doc, sv)
+    updates.push(u)
     return updates
 }
 
@@ -96,7 +108,6 @@ async function main() {
   console.log(
     `[sanity] n=${updates.length}: same-text=ok yn-bytes-eq-yjs=${info.sameYn} ywasm-bytes-eq-yjs=${info.sameYwasm} merged-bytes=${info.len}`
   );
-
   const bench = new Bench({ time: 0, warmupTime: 0, iterations: 5, warmupIterations: 1 });
   const length = updates.length
   bench.add(`yjs   merge ${length} updates`, () => {
