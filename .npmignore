@@ -1,0 +1,12 @@
+benchmark/
+src/
+target/
+**/node_modules/
+**/.DS_Store
+.claude/
+Cargo.toml
+Cargo.lock
+cargo.log
+cross.log
+npm-debug.log*
+*.tgz
