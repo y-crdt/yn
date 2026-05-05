@@ -6,3 +6,4 @@ cargo.log
 cross.log
 npm-debug.log*
 *.tgz
+.claude/settings.local.json
