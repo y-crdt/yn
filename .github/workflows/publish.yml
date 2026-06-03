@@ -1,0 +1,107 @@
+name: Publish to npm
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  check:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_publish: ${{ steps.v.outputs.should_publish }}
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+      - name: Check version against npm registry
+        id: v
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if [[ "$VER" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+          if npm view "${NAME}@${VER}" version 2>/dev/null; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version $VER already published, skipping."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "New version detected: $VER"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.should_publish == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { triple: linux-x64-gnu,   os: ubuntu-latest,    target: x86_64-unknown-linux-gnu }
+          - { triple: linux-arm64-gnu, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { triple: darwin-x64,      os: macos-13,         target: x86_64-apple-darwin }
+          - { triple: darwin-arm64,    os: macos-14,         target: aarch64-apple-darwin }
+          - { triple: win32-x64-msvc,  os: windows-latest,   target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: npm ci
+      - name: Build native addon
+        run: npm run build
+      - name: Name artifact
+        shell: bash
+        run: mv index.node "index-${{ matrix.triple }}.node"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.triple }}
+          path: index-${{ matrix.triple }}.node
+          if-no-files-found: error
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # id-token: write enables npm trusted publishing (OIDC). The registry
+      # exchanges this short-lived token for a scoped upload credential, so no
+      # long-lived NPM_TOKEN secret is needed. Provenance is generated too.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect binaries into package root
+        run: find artifacts -name 'index-*.node' -exec cp {} . \;
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag ${{ needs.check.outputs.tag }}
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.check.outputs.version }}"
+          PRERELEASE=""
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE="--prerelease"
+          fi
+          gh release create "v${VERSION}" --generate-notes $PRERELEASE

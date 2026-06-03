@@ -2,7 +2,20 @@
   "name": "@y-crdt/yn",
   "version": "0.1.0",
   "description": "nodejs bindings to yrs",
-  "main": "index.node",
+  "main": "./load.cjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./load.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "load.cjs",
+    "index.mjs",
+    "index-*.node",
+    "README.md"
+  ],
   "scripts": {
     "test": "cargo test",
     "cargo-build": "cargo build --message-format=json-render-diagnostics > cargo.log",
@@ -16,6 +29,10 @@
   },
   "author": "Bartosz Sypytkowski",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/y-crdt/yn.git"
+  },
   "keywords": [
     "y-crdt",
     "yjs",
