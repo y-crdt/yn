@@ -3,8 +3,10 @@
   "version": "0.1.1",
   "description": "nodejs bindings to yrs",
   "main": "./load.cjs",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./index.mjs",
       "require": "./load.cjs"
     },
@@ -13,6 +15,7 @@
   "files": [
     "load.cjs",
     "index.mjs",
+    "index.d.ts",
     "index-*.node",
     "README.md"
   ],
