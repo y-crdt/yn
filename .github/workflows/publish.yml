@@ -49,7 +49,8 @@ jobs:
         include:
           - { triple: linux-x64-gnu,   os: ubuntu-latest,    target: x86_64-unknown-linux-gnu }
           - { triple: linux-arm64-gnu, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { triple: darwin-x64,      os: macos-13,         target: x86_64-apple-darwin }
+          # darwin-x64 is cross-compiled on the Apple Silicon runner (no Intel runner needed).
+          - { triple: darwin-x64,      os: macos-14,         target: x86_64-apple-darwin }
           - { triple: darwin-arm64,    os: macos-14,         target: aarch64-apple-darwin }
           - { triple: win32-x64-msvc,  os: windows-latest,   target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.os }}
@@ -64,6 +65,10 @@ jobs:
       - run: npm ci
       - name: Build native addon
         run: npm run build
+        # Build explicitly for the matrix target. For native runners this is the
+        # host triple; for darwin-x64 it cross-compiles on the Apple Silicon runner.
+        env:
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
       - name: Name artifact
         shell: bash
         run: mv index.node "index-${{ matrix.triple }}.node"
