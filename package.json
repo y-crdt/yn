@@ -1,6 +1,6 @@
 {
   "name": "@y-crdt/yn",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "nodejs bindings to yrs",
   "main": "./load.cjs",
   "types": "./index.d.ts",
