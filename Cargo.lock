@@ -500,7 +500,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "yn"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "neon",
  "yrs",
@@ -508,9 +508,9 @@ dependencies = [
 
 [[package]]
 name = "yrs"
-version = "0.27.0"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cea9488df47b1e7068710c05c7e2506daf4e81e5ff140f58157320396c2ed0a2"
+checksum = "e754a17ff52e7e34dfe94892cb8c5fb63b7ce3814e19b2f8e95e505ec3fb2786"
 dependencies = [
  "arc-swap",
  "async-lock",
